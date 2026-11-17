@@ -1,0 +1,47 @@
+{
+  "id": "./",
+  "name": "GIF + Photo Mixer",
+  "short_name": "GIF Mixer",
+  "description": "Combine photos and animated GIFs into a collage and export an animated GIF.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#111426",
+  "theme_color": "#673cff",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "dir": "ltr",
+  "lang": "en",
+  "display_override": [
+    "browser",
+    "minimal-ui",
+    "window-controls-overlay"
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://khalikhal090-dotcom.github.io/image-and-gif-mixer/",
+      "id": "https://khalikhal090-dotcom.github.io/image-and-gif-mixer/"
+    }
+  ],
+  "categories": [
+    "developer"
+  ],
+  "share_target": {
+    "method": "POST",
+    "action": "1"
+  }
+}
