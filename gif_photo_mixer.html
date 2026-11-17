@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIF + Photo Mixer</title>
+<style>
+:root{--bg:#101322;--panel:#1b2035;--accent:#a72cff;--cyan:#39c7ff;--text:#f7f5ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#11172c,#21103b);color:var(--text);font:15px system-ui,Arial}
+header{padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#111426;border-bottom:1px solid #37304e}
+h1{font-size:clamp(20px,3vw,30px);margin:0}button,.filebtn{border:0;border-radius:12px;padding:11px 16px;background:linear-gradient(100deg,#9d20f5,#673cff);color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+main{display:grid;grid-template-columns:240px minmax(280px,1fr) 250px;gap:14px;padding:14px;max-width:1500px;margin:auto}
+.panel{background:#1a2033;border:1px solid #343b57;border-radius:16px;padding:14px;min-width:0}.panel h2{font-size:16px;margin:0 0 12px}
+.tools{display:grid;gap:10px}.tools input[type=file]{display:none}.tools label{display:block;text-align:center;padding:12px;border-radius:12px;background:#292f49;border:1px solid #41496b;cursor:pointer}
+.tools small,.hint{color:#bbc3df;line-height:1.5}.stageWrap{display:flex;flex-direction:column;gap:12px;min-width:0}
+.stage{background:#0c1020;border:1px solid #3b4260;border-radius:16px;padding:10px;display:grid;place-items:center;min-height:350px}
+canvas{max-width:100%;height:auto;background:#27304a;border-radius:8px;touch-action:none}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.controls input[type=number]{width:76px;background:#11172a;color:white;border:1px solid #4a5273;border-radius:8px;padding:8px}
+.layer{display:flex;align-items:center;gap:8px;padding:8px;background:#252c44;border-radius:10px;margin:7px 0}.layer img{width:44px;height:44px;object-fit:cover;border-radius:7px}.layer span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.layer button{padding:6px 9px;border-radius:8px;background:#414b6e}
+.timeline{display:flex;gap:8px;overflow:auto}.thumb{width:76px;height:64px;object-fit:cover;border:2px solid #8750ff;border-radius:9px}
+progress{width:100%;height:12px;accent-color:#b12cff}
+#status{color:#c8d0ed;min-height:22px;font-size:13px}
+@media(max-width:900px){main{grid-template-columns:1fr}.panel{order:2}.stageWrap{order:1}.layersPanel{order:3}}
+</style>
+</head>
+<body>
+<header><h1>🎨 GIF + Photo Mixer</h1><button id="exportBtn">Export animated GIF</button></header>
+<main>
+<section class="panel">
+<h2>Add to your collage</h2>
+<div class="tools">
+<label>🖼️ Add photos<input id="photos" type="file" accept="image/*" multiple></label>
+<label>✨ Add GIFs<input id="gifs" type="file" accept="image/gif" multiple></label>
+<small>Choose several photos and GIFs. Drag items on the canvas to arrange them.</small>
+<hr style="border-color:#343b57;width:100%">
+<label>Background<input id="bgcolor" type="color" value="#27304a" style="display:block;margin:8px auto 0"></label>
+</div>
+</section>
+<section class="stageWrap">
+<div class="stage"><canvas id="canvas" width="720" height="480"></canvas></div>
+<div class="panel">
+<div class="controls">
+<button id="playBtn">▶ Preview</button>
+<button id="clearBtn" style="background:#424b69">Clear collage</button>
+<label class="hint">GIF duration <input id="duration" type="number" min="1" max="10" value="3"> sec</label>
+<label class="hint">FPS <input id="fps" type="number" min="5" max="20" value="10"></label>
+</div>
+<div class="timeline" id="timeline" style="margin-top:12px"></div>
+<div id="status">Add images to begin. Select a layer to resize or remove it.</div>
+<progress id="progress" value="0" max="100" hidden></progress>
+</div>
+</section>
+<section class="panel layersPanel">
+<h2>Layers</h2>
+<div id="layers"><p class="hint">No layers yet.</p></div>
+<hr style="border-color:#343b57">
+<h2>Selected layer</h2>
+<label class="hint">Size <input id="scale" type="range" min="10" max="250" value="100" style="width:100%"></label>
+<div class="controls"><button id="frontBtn">Bring to front</button><button id="removeBtn" style="background:#424b69">Remove</button></div>
+<p class="hint">Tip: drag an item to move it. Choose a layer before changing its size.</p>
+</section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
+<script>
+const c=document.getElementById('canvas'),ctx=c.getContext('2d'),layers=[],layersEl=document.getElementById('layers');
+let selected=-1,drag=null,previewTimer=null;
+const status=t=>document.getElementById('status').textContent=t;
+function draw(){
+ ctx.fillStyle=document.getElementById('bgcolor').value;ctx.fillRect(0,0,c.width,c.height);
+ for(let i=0;i<layers.length;i++){const L=layers[i];if(!L.visible)continue;
+  const w=L.w*L.scale,h=L.h*L.scale;
+  ctx.save();ctx.globalAlpha=L.opacity;ctx.drawImage(L.img,L.x-w/2,L.y-h/2,w,h);
+  if(i===selected){ctx.strokeStyle='#55d8ff';ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.strokeRect(L.x-w/2,L.y-h/2,w,h)}
+  ctx.restore();
+ }
+}
+function refresh(){
+ layersEl.innerHTML='';
+ if(!layers.length){layersEl.innerHTML='<p class="hint">No layers yet.</p>';return}
+ layers.forEach((L,i)=>{const d=document.createElement('div');d.className='layer';
+ const im=document.createElement('img');im.src=L.url;const s=document.createElement('span');s.textContent=L.name;
+ const b=document.createElement('button');b.textContent=i===selected?'✓':'Select';b.onclick=()=>{selected=i;document.getElementById('scale').value=Math.round(layers[i].scale*100);refresh();draw()};
+ d.append(im,s,b);layersEl.append(d)});
+}
+function addFiles(files){
+ [...files].forEach(file=>{if(!file.type.startsWith('image/'))return;const url=URL.createObjectURL(file),img=new Image();
+ img.onload=()=>{const factor=Math.min(260/img.width,220/img.height,1);layers.push({img,url,name:file.name,x: c.width/2+(layers.length%4-1.5)*35,y:c.height/2+(layers.length%3-1)*30,w:img.width*factor,h:img.height*factor,scale:1,visible:true,opacity:1});selected=layers.length-1;refresh();draw();document.getElementById('timeline').innerHTML=layers.map(L=>'<img class="thumb" src="'+L.url+'">').join('');};
+ img.src=url;
+ });
+}
+document.getElementById('photos').onchange=e=>addFiles(e.target.files);
+document.getElementById('gifs').onchange=e=>addFiles(e.target.files);
+document.getElementById('bgcolor').oninput=draw;
+document.getElementById('scale').oninput=e=>{if(selected>=0){layers[selected].scale=+e.target.value/100;draw()}};
+document.getElementById('frontBtn').onclick=()=>{if(selected>=0){const L=layers.splice(selected,1)[0];layers.push(L);selected=layers.length-1;refresh();draw()}};
+document.getElementById('removeBtn').onclick=()=>{if(selected>=0){URL.revokeObjectURL(layers[selected].url);layers.splice(selected,1);selected=Math.min(selected,layers.length-1);refresh();draw()}};
+document.getElementById('clearBtn').onclick=()=>{layers.forEach(L=>URL.revokeObjectURL(L.url));layers.length=0;selected=-1;refresh();draw();document.getElementById('timeline').innerHTML=''};
+c.onpointerdown=e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)*c.width/r.width,y=(e.clientY-r.top)*c.height/r.height;
+ for(let i=layers.length-1;i>=0;i--){const L=layers[i],w=L.w*L.scale,h=L.h*L.scale;if(x>=L.x-w/2&&x<=L.x+w/2&&y>=L.y-h/2&&y<=L.y+h/2){selected=i;drag={dx:x-L.x,dy:y-L.y};c.setPointerCapture(e.pointerId);refresh();draw();break}}
+};
+c.onpointermove=e=>{if(!drag||selected<0)return;const r=c.getBoundingClientRect();layers[selected].x=(e.clientX-r.left)*c.width/r.width-drag.dx;layers[selected].y=(e.clientY-r.top)*c.height/r.height-drag.dy;draw()};
+c.onpointerup=()=>drag=null;
+document.getElementById('playBtn').onclick=()=>{if(previewTimer){clearInterval(previewTimer);previewTimer=null;draw();document.getElementById('playBtn').textContent='▶ Preview';return}
+ document.getElementById('playBtn').textContent='■ Stop preview';let t=0;previewTimer=setInterval(()=>{t++;draw();if(t>30){clearInterval(previewTimer);previewTimer=null;document.getElementById('playBtn').textContent='▶ Preview'}},100);
+};
+document.getElementById('exportBtn').onclick=async()=>{
+ if(!layers.length){status('Add at least one photo or GIF first.');return}
+ if(typeof GIF==='undefined'){status('GIF encoder could not load. Check your internet connection and reload this page.');return}
+ const btn=document.getElementById('exportBtn'),bar=document.getElementById('progress');btn.disabled=true;bar.hidden=false;bar.value=0;status('Preparing animation…');
+ const fps=Math.max(5,Math.min(20,+document.getElementById('fps').value||10)),duration=Math.max(1,Math.min(10,+document.getElementById('duration').value||3));
+ const encoder=new GIF({workers:2,quality:10,width:c.width,height:c.height,workerScript:'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'});
+ const frameCount=fps*duration;
+ for(let i=0;i<frameCount;i++){draw();encoder.addFrame(ctx,{copy:true,delay:1000/fps});await new Promise(r=>setTimeout(r,1000/fps));bar.value=(i+1)/frameCount*75}
+ encoder.on('progress',p=>bar.value=75+p*25);
+ encoder.on('finished',blob=>{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='my-photo-gif-collage.gif';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);status('GIF exported! Check your downloads.');bar.value=100;btn.disabled=false;});
+ encoder.on('abort',()=>{status('Export was cancelled.');btn.disabled=false});
+ encoder.render();
+};
+draw();
+</script>
+</body></html>
